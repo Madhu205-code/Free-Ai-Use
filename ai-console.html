@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Console — puter.js</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://js.puter.com/v2/"></script>
+<style>
+  :root {
+    --bg: #0e0d10;
+    --bg-2: #16141a;
+    --panel: #1b1820;
+    --line: #2a2530;
+    --ink: #efe7d7;
+    --ink-dim: #9a8f7e;
+    --accent: #d97a3a;
+    --accent-soft: #b86430;
+    --user: #6c7a52;
+    --error: #c64a3a;
+    --warn: #e0a82e;
+    --c-claude: #cc785c;
+    --c-gpt:    #4a8f6a;
+    --c-gemini: #5a7fb8;
+    --c-llama:  #d97a3a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    overflow: hidden;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,.018) 1px, transparent 0);
+    background-size: 3px 3px;
+    mix-blend-mode: overlay;
+  }
+
+  .app { display: grid; grid-template-columns: 300px 1fr; height: 100vh; }
+
+  /* sidebar */
+  .sidebar {
+    background: var(--bg-2);
+    border-right: 1px solid var(--line);
+    padding: 24px 20px;
+    display: flex; flex-direction: column;
+    gap: 22px;
+    overflow-y: auto;
+  }
+  .sidebar::-webkit-scrollbar { width: 6px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--line); }
+
+  .brand {
+    font-family: 'Fraunces', serif;
+    font-weight: 800; font-size: 36px;
+    letter-spacing: -0.04em; line-height: 0.9;
+  }
+  .brand .acc { color: var(--accent); font-style: italic; font-weight: 400; }
+  .brand-sub {
+    margin-top: 6px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: var(--ink-dim);
+  }
+
+  .section-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    color: var(--ink-dim);
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  .family-name {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: var(--ink-dim);
+    margin: 12px 0 5px 4px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .family-name .swatch { width: 7px; height: 7px; border-radius: 50%; }
+
+  .model-list { display: flex; flex-direction: column; gap: 1px; }
+  .model-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--ink-dim);
+    text-align: left;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 11.5px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 8px;
+  }
+  .model-btn:hover { color: var(--ink); background: rgba(255,255,255,0.02); }
+  .model-btn.active {
+    color: var(--ink);
+    border-color: var(--line);
+    background: var(--panel);
+  }
+  .model-btn.active .name-text { color: var(--c, var(--accent)); font-weight: 500; }
+  .model-btn .badge {
+    font-size: 8px;
+    letter-spacing: 0.15em;
+    padding: 2px 5px;
+    border: 1px solid currentColor;
+    opacity: 0.5;
+    border-radius: 1px;
+    flex-shrink: 0;
+  }
+
+  .controls { display: flex; flex-direction: column; gap: 14px; }
+  .control { display: flex; flex-direction: column; gap: 6px; }
+  .control label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--ink-dim);
+    display: flex; justify-content: space-between;
+  }
+  .control label .val { color: var(--accent); font-weight: 700; }
+  .control input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    background: transparent; width: 100%; height: 16px; cursor: pointer;
+  }
+  .control input[type="range"]::-webkit-slider-runnable-track { height: 1px; background: var(--line); }
+  .control input[type="range"]::-moz-range-track { height: 1px; background: var(--line); }
+  .control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 10px; height: 10px;
+    background: var(--accent); border-radius: 50%; margin-top: -4.5px;
+  }
+  .control input[type="range"]::-moz-range-thumb {
+    width: 10px; height: 10px;
+    background: var(--accent); border-radius: 50%; border: none;
+  }
+
+  .toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .toggle.disabled { opacity: 0.35; cursor: not-allowed; }
+  .toggle:not(.disabled):hover { border-color: var(--ink-dim); }
+  .toggle.on { border-color: var(--accent); }
+  .toggle .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--ink-dim);
+  }
+  .toggle.on .label { color: var(--accent); }
+  .toggle .state {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--ink-dim);
+  }
+  .toggle.on .state { color: var(--accent); font-weight: 700; }
+
+  .clear-btn {
+    margin-top: auto;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    padding: 10px;
+    font-family: inherit;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .clear-btn:hover { color: var(--error); border-color: var(--error); }
+
+  /* main */
+  .main { display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+  .topbar {
+    padding: 16px 36px;
+    border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--bg-2);
+  }
+  .topbar .current-model {
+    font-family: 'Fraunces', serif;
+    font-size: 18px; font-weight: 400; font-style: italic;
+  }
+  .topbar .current-model .id {
+    font-family: 'JetBrains Mono', monospace;
+    font-style: normal; font-size: 11px;
+    color: var(--ink-dim); margin-left: 12px;
+  }
+  .status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.25em;
+    color: var(--ink-dim);
+  }
+  .status .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--user); box-shadow: 0 0 8px currentColor;
+  }
+  .status.busy .dot { background: var(--accent); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* messages */
+  .messages {
+    flex: 1; overflow-y: auto;
+    padding: 40px 36px 24px;
+    scroll-behavior: smooth;
+  }
+  .messages::-webkit-scrollbar { width: 8px; }
+  .messages::-webkit-scrollbar-thumb { background: var(--line); }
+
+  .empty {
+    height: 100%;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: flex-start;
+    max-width: 720px; margin: 0 auto; padding: 0 12px;
+  }
+  .empty h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300; font-size: 60px;
+    line-height: 1.05; letter-spacing: -0.03em;
+    margin-bottom: 18px;
+  }
+  .empty h1 em { color: var(--accent); font-style: italic; font-weight: 400; }
+  .empty p {
+    color: var(--ink-dim);
+    font-size: 13px; line-height: 1.7;
+    max-width: 540px;
+  }
+  .suggestions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 32px;
+    width: 100%; max-width: 540px;
+  }
+  .suggestion {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--ink-dim);
+    padding: 14px 16px;
+    font-family: inherit; font-size: 11px;
+    text-align: left; cursor: pointer;
+    transition: all 0.2s; line-height: 1.5;
+  }
+  .suggestion:hover { border-color: var(--accent); color: var(--ink); transform: translateX(2px); }
+  .suggestion span {
+    display: block;
+    color: var(--accent);
+    font-size: 9px; letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .msg {
+    max-width: 760px; margin: 0 auto 28px;
+    display: grid; grid-template-columns: 80px 1fr; gap: 16px;
+  }
+  .msg .who {
+    font-size: 9px; text-transform: uppercase;
+    letter-spacing: 0.3em;
+    color: var(--ink-dim);
+    padding-top: 4px;
+  }
+  .msg.user .who { color: var(--user); }
+  .msg.assistant .who { color: var(--c, var(--accent)); }
+  .msg.error .who { color: var(--error); }
+  .msg .body {
+    font-size: 14px; line-height: 1.75;
+    white-space: pre-wrap; word-wrap: break-word;
+  }
+  .msg.error .body { color: var(--error); }
+  .msg.assistant .meta {
+    font-size: 9px;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    margin-bottom: 6px;
+  }
+  .msg.assistant .meta .ws {
+    color: var(--gemini, var(--accent));
+    margin-left: 6px;
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 7px; height: 14px;
+    background: var(--accent);
+    margin-left: 2px; vertical-align: text-bottom;
+    animation: blink 0.9s steps(2) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* composer */
+  .composer {
+    border-top: 1px solid var(--line);
+    padding: 18px 36px 22px;
+    background: var(--bg-2);
+  }
+  .composer-inner {
+    max-width: 760px; margin: 0 auto;
+    display: flex; gap: 12px; align-items: flex-end;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 12px 14px;
+    transition: border-color 0.2s;
+  }
+  .composer-inner:focus-within { border-color: var(--accent); }
+  .composer textarea {
+    flex: 1;
+    background: transparent; border: none;
+    color: var(--ink);
+    font-family: inherit; font-size: 14px;
+    line-height: 1.6; resize: none; outline: none;
+    max-height: 200px; min-height: 22px;
+  }
+  .composer textarea::placeholder { color: var(--ink-dim); font-style: italic; }
+  .send {
+    background: var(--accent);
+    color: var(--bg); border: none;
+    padding: 8px 18px;
+    font-family: inherit; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.25em;
+    font-weight: 700; cursor: pointer;
+    transition: all 0.15s;
+    align-self: flex-end;
+  }
+  .send:hover:not(:disabled) { background: var(--accent-soft); }
+  .send:disabled { opacity: 0.3; cursor: not-allowed; }
+  .footnote {
+    max-width: 760px; margin: 8px auto 0;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: var(--ink-dim);
+    text-align: center;
+  }
+
+  /* file:// blocking modal */
+  .blocker {
+    position: fixed; inset: 0;
+    background: rgba(14, 13, 16, 0.96);
+    z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    overflow-y: auto;
+  }
+  .blocker-card {
+    max-width: 620px; width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--warn);
+    padding: 36px;
+    margin: auto;
+  }
+  .blocker-card h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 400; font-size: 28px;
+    margin-bottom: 6px;
+    line-height: 1.2;
+  }
+  .blocker-card h2 em { color: var(--warn); font-style: italic; }
+  .blocker-card .why {
+    font-size: 10px;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    margin-bottom: 22px;
+  }
+  .blocker-card p { color: var(--ink); margin-bottom: 14px; }
+  .blocker-card pre {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    padding: 12px 14px;
+    margin: 10px 0;
+    font-size: 12px;
+    color: var(--accent);
+    overflow-x: auto;
+  }
+  .blocker-card .step {
+    font-size: 9px; color: var(--warn);
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    margin: 18px 0 6px;
+  }
+  .blocker-card .small {
+    font-size: 11px;
+    color: var(--ink-dim);
+    margin-top: 18px;
+    line-height: 1.6;
+  }
+  .blocker-card code {
+    background: var(--bg);
+    padding: 2px 6px;
+    border: 1px solid var(--line);
+    color: var(--accent);
+    font-size: 12px;
+  }
+
+  @media (max-width: 720px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--line); padding: 14px; max-height: 50vh; }
+    .sidebar .brand { font-size: 26px; }
+    .messages { padding: 24px 18px; }
+    .composer { padding: 14px 18px; }
+    .topbar { padding: 12px 18px; }
+    .empty h1 { font-size: 38px; }
+    .suggestions { grid-template-columns: 1fr; }
+    .msg { grid-template-columns: 60px 1fr; gap: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div>
+      <div class="brand">ai<span class="acc">.console</span></div>
+      <div class="brand-sub">Powered by puter.js</div>
+    </div>
+
+    <div>
+      <div class="section-label">Models</div>
+      <div id="model-tree"></div>
+    </div>
+
+    <div>
+      <div class="section-label">Parameters</div>
+      <div class="controls">
+        <div class="control">
+          <label>Temperature <span class="val" id="temp-val">0.7</span></label>
+          <input type="range" id="temp" min="0" max="2" step="0.1" value="0.7" />
+        </div>
+        <div class="control">
+          <label>Streaming <span class="val" id="stream-val">on</span></label>
+          <input type="range" id="stream" min="0" max="1" step="1" value="1" />
+        </div>
+        <div class="toggle disabled" id="websearch-toggle">
+          <span class="label">🌐 Web search</span>
+          <span class="state" id="websearch-state">GPT only</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="clear-btn" id="clear-btn">Clear conversation</button>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="current-model">
+        <span id="current-name">GPT-5.5</span>
+        <span class="id" id="current-id">openai/gpt-5.5</span>
+      </div>
+      <div class="status" id="status"><span class="dot"></span><span id="status-text">Ready</span></div>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="empty" id="empty">
+        <h1>One console.<br /><em>Every</em> model.</h1>
+        <p>A thin client over puter.js — chat with GPT-5.5, Claude Opus 4.6, Gemini 2.5 Pro, and Llama 4 from the same place. Toggle web search for live results on GPT models. No API keys, no backend.</p>
+        <div class="suggestions" id="suggestions">
+          <button class="suggestion" data-prompt="What's the latest news about AI regulation in the EU? Use web search."><span>Live</span>Latest EU AI regulation news (try with web search).</button>
+          <button class="suggestion" data-prompt="Explain transformers like I'm a curious 10-year-old."><span>Explain</span>Transformers, but for a curious 10-year-old.</button>
+          <button class="suggestion" data-prompt="Write a short noir-style poem about a stray cat."><span>Create</span>A short noir poem about a stray cat.</button>
+          <button class="suggestion" data-prompt="What's the most underrated programming concept and why?"><span>Discuss</span>The most underrated programming concept.</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer">
+      <div class="composer-inner">
+        <textarea id="input" rows="1" placeholder="Ask anything…"></textarea>
+        <button class="send" id="send">Send</button>
+      </div>
+      <div class="footnote">Enter to send · Shift+Enter for newline</div>
+    </div>
+  </main>
+</div>
+
+<script>
+  // ──────────────────────────────────────────────────────────────
+  // Block file:// — puter.js auth popup can't communicate back to
+  // a file:// page (browser security). Show a clear how-to-fix.
+  // ──────────────────────────────────────────────────────────────
+  if (location.protocol === 'file:') {
+    document.body.innerHTML = `
+      <div class="blocker">
+        <div class="blocker-card">
+          <h2>This page needs to be <em>served</em>, not opened.</h2>
+          <div class="why">Why? · puter.js can't authenticate over file://</div>
+          <p>You opened this file directly (file://). Browsers block the puter.js login popup from talking back to a file:// page, so AI calls fail silently. You need to serve it from a tiny local server. Takes 10 seconds.</p>
+
+          <div class="step">Option 1 · Python (already installed on Mac/Linux)</div>
+          <p>In Terminal, <code>cd</code> to the folder with this file and run:</p>
+          <pre>python3 -m http.server 8000</pre>
+          <p>Then open <strong>http://localhost:8000</strong> in your browser and click the file.</p>
+
+          <div class="step">Option 2 · Node.js (any OS)</div>
+          <pre>npx serve .</pre>
+
+          <div class="step">Option 3 · VS Code</div>
+          <p>Install the <strong>Live Server</strong> extension, right-click this file, choose "Open with Live Server."</p>
+
+          <div class="step">Option 4 · Use the helper scripts</div>
+          <p>If you saved <code>serve.sh</code> (Mac/Linux) or <code>serve.bat</code> (Windows) next to this file, just double-click it.</p>
+
+          <p class="small">This isn't a bug in the app — it's a security rule every modern browser enforces for file:// pages. Once served from http://localhost, everything works the same as a real website.</p>
+        </div>
+      </div>`;
+    throw new Error('Refusing to run from file://');
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // Model catalog
+  // ──────────────────────────────────────────────────────────────
+  const FAMILIES = [
+    {
+      key: 'gpt',
+      name: 'OpenAI GPT',
+      color: '#4a8f6a',
+      provider: 'openai',
+      models: [
+        { id: 'openai/gpt-5.5',      name: 'GPT-5.5',       badge: 'NEW'  },
+        { id: 'openai/gpt-5.4-mini', name: 'GPT-5.4 mini',  badge: 'FAST' },
+      ],
+    },
+    {
+      key: 'claude',
+      name: 'Anthropic Claude',
+      color: '#cc785c',
+      provider: 'anthropic',
+      models: [
+        { id: 'claude-opus-4-6',  name: 'Claude Opus 4.6',  badge: 'NEW'  },
+        { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', badge: 'FAST' },
+      ],
+    },
+    {
+      key: 'gemini',
+      name: 'Google Gemini',
+      color: '#5a7fb8',
+      provider: 'google',
+      models: [
+        { id: 'google/gemini-2.5-pro',   name: 'Gemini 2.5 Pro',   badge: 'PRO'  },
+        { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', badge: 'FAST' },
+      ],
+    },
+    {
+      key: 'llama',
+      name: 'Meta Llama',
+      color: '#d97a3a',
+      provider: 'meta',
+      models: [
+        { id: 'meta-llama/llama-4-maverick',       name: 'Llama 4 Maverick', badge: '4'   },
+        { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B',    badge: '3.3' },
+      ],
+    },
+  ];
+
+  // ── State ───────────────────────────────────────────────────────
+  const state = {
+    model: 'openai/gpt-5.5',
+    family: FAMILIES[0],
+    temperature: 0.7,
+    stream: true,
+    webSearch: false,
+    history: [],
+    busy: false,
+  };
+
+  // ── DOM ─────────────────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    tree:        $('model-tree'),
+    currentName: $('current-name'),
+    currentId:   $('current-id'),
+    messages:    $('messages'),
+    empty:       $('empty'),
+    input:       $('input'),
+    send:        $('send'),
+    status:      $('status'),
+    statusText:  $('status-text'),
+    temp:        $('temp'),
+    tempVal:     $('temp-val'),
+    streamRange: $('stream'),
+    streamVal:   $('stream-val'),
+    clearBtn:    $('clear-btn'),
+    wsToggle:    $('websearch-toggle'),
+    wsState:     $('websearch-state'),
+  };
+
+  // ── Render model tree ──────────────────────────────────────────
+  function renderModels() {
+    els.tree.innerHTML = '';
+    for (const fam of FAMILIES) {
+      const head = document.createElement('div');
+      head.className = 'family-name';
+      head.innerHTML = `<span class="swatch" style="background:${fam.color}"></span>${fam.name}`;
+      els.tree.appendChild(head);
+
+      const list = document.createElement('div');
+      list.className = 'model-list';
+      for (const m of fam.models) {
+        const btn = document.createElement('button');
+        btn.className = 'model-btn' + (m.id === state.model ? ' active' : '');
+        btn.style.setProperty('--c', fam.color);
+        btn.innerHTML = `<span class="name-text">${m.name}</span><span class="badge">${m.badge}</span>`;
+        btn.addEventListener('click', () => selectModel(m.id, fam));
+        list.appendChild(btn);
+      }
+      els.tree.appendChild(list);
+    }
+  }
+
+  function selectModel(id, fam) {
+    state.model = id;
+    state.family = fam;
+    const m = fam.models.find(x => x.id === id);
+    els.currentName.textContent = m.name;
+    els.currentId.textContent = m.id;
+
+    // Web search is OpenAI-only — enable/disable the toggle accordingly
+    const wsAvailable = fam.provider === 'openai';
+    if (wsAvailable) {
+      els.wsToggle.classList.remove('disabled');
+      els.wsState.textContent = state.webSearch ? 'ON' : 'off';
+      els.wsToggle.classList.toggle('on', state.webSearch);
+    } else {
+      els.wsToggle.classList.add('disabled');
+      els.wsToggle.classList.remove('on');
+      els.wsState.textContent = 'GPT only';
+    }
+
+    renderModels();
+  }
+
+  // ── Render a chat message ──────────────────────────────────────
+  function addMessage(role, text, opts = {}) {
+    if (els.empty) { els.empty.remove(); els.empty = null; }
+    const div = document.createElement('div');
+    div.className = `msg ${role}`;
+    if (role === 'assistant' && state.family) {
+      div.style.setProperty('--c', state.family.color);
+    }
+    const label = role === 'user'
+      ? 'You'
+      : role === 'assistant'
+        ? (state.family?.key === 'gpt' ? 'GPT'
+            : state.family?.key === 'claude' ? 'Claude'
+            : state.family?.key === 'gemini' ? 'Gemini'
+            : state.family?.key === 'llama' ? 'Llama'
+            : 'AI')
+        : 'Error';
+
+    let metaHTML = '';
+    if (role === 'assistant' && opts.showMeta) {
+      const m = state.family.models.find(x => x.id === state.model);
+      metaHTML = `<div class="meta">${m?.name || state.model}${opts.usedWebSearch ? ' <span class="ws">· 🌐 web</span>' : ''}</div>`;
+    }
+
+    div.innerHTML = `<div class="who">${label}</div><div class="body">${metaHTML}<div class="text"></div></div>`;
+    div.querySelector('.text').textContent = text;
+    els.messages.appendChild(div);
+    els.messages.scrollTop = els.messages.scrollHeight;
+    return div.querySelector('.text');
+  }
+
+  function setBusy(b, label = 'Thinking…') {
+    state.busy = b;
+    els.send.disabled = b;
+    els.status.classList.toggle('busy', b);
+    els.statusText.textContent = b ? label : 'Ready';
+  }
+
+  // ── Send to puter.ai.chat ──────────────────────────────────────
+  async function sendPrompt(text) {
+    if (!text.trim() || state.busy) return;
+
+    addMessage('user', text);
+    state.history.push({ role: 'user', content: text });
+
+    const useWebSearch = state.webSearch && state.family.provider === 'openai';
+    const bodyEl = addMessage('assistant', '', { showMeta: true, usedWebSearch: useWebSearch });
+    const cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    bodyEl.appendChild(cursor);
+
+    setBusy(true, useWebSearch ? 'Searching the web…' : 'Thinking…');
+
+    try {
+      const opts = {
+        model: state.model,
+        temperature: state.temperature,
+        stream: state.stream,
+      };
+      if (useWebSearch) {
+        opts.tools = [{ type: 'web_search' }];
+      }
+
+      const messages = state.history.map(m => ({ role: m.role, content: m.content }));
+
+      // ── Call puter.ai.chat with the form most providers handle best ──
+      // For a single turn (just the new user message), pass a plain string.
+      // For multi-turn, pass the messages array. GPT/OpenAI providers in
+      // particular tend to choke on single-turn messages-array inputs.
+      let resp;
+      if (messages.length === 1 && typeof messages[0].content === 'string') {
+        resp = await puter.ai.chat(messages[0].content, opts);
+      } else {
+        resp = await puter.ai.chat(messages, opts);
+      }
+
+      // ── Helper: pull plain text out of any shape puter.js returns ──
+      const extractText = (r) => {
+        if (r == null) return '';
+        if (typeof r === 'string') return r;
+        // { message: { content: "..." } }
+        // { message: { content: [{ type: 'text', text: '...' }, ...] } }
+        if (r.message?.content != null) {
+          const c = r.message.content;
+          if (typeof c === 'string') return c;
+          if (Array.isArray(c)) return c.map(x => x?.text || '').join('');
+        }
+        // { content: [...] } or { content: '...' }
+        if (r.content != null) {
+          if (typeof r.content === 'string') return r.content;
+          if (Array.isArray(r.content)) return r.content.map(x => x?.text || '').join('');
+        }
+        // Stream chunk shapes: { text } or { type: 'text', text }
+        if (typeof r.text === 'string') return r.text;
+        // Last resort: toString
+        if (typeof r.toString === 'function') {
+          const s = r.toString();
+          if (s && s !== '[object Object]') return s;
+        }
+        return '';
+      };
+
+      // ── Detect whether this response is actually streamable ───────
+      const isAsyncIterable = resp != null
+        && typeof resp === 'object'
+        && typeof resp[Symbol.asyncIterator] === 'function';
+
+      if (state.stream && isAsyncIterable) {
+        // Real streaming response
+        let acc = '';
+        for await (const part of resp) {
+          const t = extractText(part);
+          if (t) {
+            acc += t;
+            bodyEl.textContent = acc;
+            bodyEl.appendChild(cursor);
+            els.messages.scrollTop = els.messages.scrollHeight;
+          }
+        }
+        cursor.remove();
+        state.history.push({ role: 'assistant', content: acc });
+      } else {
+        // Either streaming was off, OR puter.js returned a non-iterable
+        // object for this model (some providers don't honor stream:true).
+        // Treat it as a single complete response.
+        const text = extractText(resp) || '[empty response]';
+        cursor.remove();
+        bodyEl.textContent = text;
+        state.history.push({ role: 'assistant', content: text });
+      }
+    } catch (err) {
+      console.error('puter.ai.chat error:', err);
+      cursor.remove();
+      const parent = bodyEl.parentElement.parentElement;
+      parent.classList.remove('assistant');
+      parent.classList.add('error');
+      parent.querySelector('.who').textContent = 'Error';
+      const msg = err?.error?.message || err?.message || JSON.stringify(err) || String(err);
+      bodyEl.textContent = `${msg}\n\nModel attempted: ${state.model}\n\nTroubleshooting: open the browser console (F12) for the full error. If it mentions auth, refresh and sign in. If it mentions "model not found," that model may have been renamed in puter.js — try a different one.`;
+      // Roll back so retry isn't polluted
+      state.history.pop();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ── Wire events ────────────────────────────────────────────────
+  els.input.addEventListener('input', () => {
+    els.input.style.height = 'auto';
+    els.input.style.height = Math.min(els.input.scrollHeight, 200) + 'px';
+  });
+
+  els.input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const v = els.input.value;
+      els.input.value = '';
+      els.input.style.height = 'auto';
+      sendPrompt(v);
+    }
+  });
+
+  els.send.addEventListener('click', () => {
+    const v = els.input.value;
+    els.input.value = '';
+    els.input.style.height = 'auto';
+    sendPrompt(v);
+  });
+
+  els.temp.addEventListener('input', () => {
+    state.temperature = parseFloat(els.temp.value);
+    els.tempVal.textContent = state.temperature.toFixed(1);
+  });
+
+  els.streamRange.addEventListener('input', () => {
+    state.stream = els.streamRange.value === '1';
+    els.streamVal.textContent = state.stream ? 'on' : 'off';
+  });
+
+  els.wsToggle.addEventListener('click', () => {
+    if (els.wsToggle.classList.contains('disabled')) return;
+    state.webSearch = !state.webSearch;
+    els.wsToggle.classList.toggle('on', state.webSearch);
+    els.wsState.textContent = state.webSearch ? 'ON' : 'off';
+  });
+
+  els.clearBtn.addEventListener('click', () => {
+    if (state.history.length === 0) return;
+    if (!confirm('Clear the conversation?')) return;
+    state.history = [];
+    els.messages.innerHTML = '';
+    location.reload(); // simplest, most reliable reset
+  });
+
+  document.querySelectorAll('.suggestion').forEach(s => {
+    s.addEventListener('click', () => sendPrompt(s.dataset.prompt));
+  });
+
+  // ── Boot ───────────────────────────────────────────────────────
+  selectModel('openai/gpt-5.5', FAMILIES[0]);
+  renderModels();
+  els.input.focus();
+</script>
+</body>
+</html>
